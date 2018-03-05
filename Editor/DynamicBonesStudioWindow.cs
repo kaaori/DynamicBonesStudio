@@ -6,6 +6,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 using VRCSDK2;
 
 /**
@@ -24,27 +25,37 @@ using VRCSDK2;
 public class DynamicBonesPreset
 {
     public string Type { get; set; }
+    public Transform Root { get; set; }
+    public float UpdateRate { get; set; }
     public float Damping { get; set; }
     public float Elasticity { get; set; }
     public float Stiffness { get; set; }
     public float Inert { get; set; }
     public float Radius { get; set; }
-    public float UpdateRate { get; set; }
+    public Vector3 EndLength { get; set; }
+    public Vector3 EndOffset { get; set; }
+    public Vector3 Gravity { get; set; }
+    public Vector3 Force { get; set; }
+    public Transform[] Colliders { get; set; }
+    public Transform[] Exclusions { get; set; }
 }
 
 public class DynamicBonesStudioWindow : EditorWindow
 {
-    private string _tutorialString = "Hello World";
-    private bool _groupEnabled;
-    private bool _myBool = true;
-    private float _myFloat = 1.23f;
+    // Interface values
     private int _selectedTabIndex;
+
+    private bool _isAutoRefreshEnabled;
+    private bool _isDataSaved;
 
     // TODO: Move to ini file with storable values.
     private readonly List<string> _commonAccessories = new List<string> {"skirt", "gimmick", "ear", "scarf", "tie", "tail", "breast"};
-
+    private List<DynamicBone> _tempBones = new List<DynamicBone>();
     private GameObject _avatar = null;
     private Animator _avatarAnim = null;
+
+    private List<DynamicBone> _allDynamicBones = new List<DynamicBone>();
+    private bool _isEditorLastStatePlaying;
 
     private Transform _hipsBone = null;
     private Transform _hairBone = null;
@@ -58,18 +69,27 @@ public class DynamicBonesStudioWindow : EditorWindow
     public static void ShowWindow()
     {
         EditorWindow.GetWindow(typeof(DynamicBonesStudioWindow));
+        
     }
 
     public List<Transform> ExclusionTransforms = new List<Transform>();
     public List<Transform> BonesTransforms = new List<Transform>();
     public List<Transform> AccessoriesTransforms = new List<Transform>();
 
-    public List<Transform> AllBones = new List<Transform>(); 
+    public List<Transform> AllBones = new List<Transform>();
 
+    void HandleOnPlayModeChanged()
+    {
+        if (_isAutoRefreshEnabled)
+        {
+                _allDynamicBones = _avatar.GetComponentsInChildren<DynamicBone>().ToList();
+        }
+
+    }
     void OnGUI()
     {
         _selectedTabIndex = GUILayout.Toolbar(_selectedTabIndex, new string[]{"Basic setup", "Studio"});
-
+        EditorApplication.playmodeStateChanged += HandleOnPlayModeChanged;
         switch (_selectedTabIndex)
         {
             // Basic setup tab
@@ -114,7 +134,7 @@ public class DynamicBonesStudioWindow : EditorWindow
                 }
                 _hairBone = (Transform)EditorGUILayout.ObjectField(_hairBone, typeof(Transform), true);
 
-                EditorGUILayout.LabelField("(Optional) Accessories Bones:", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("Accessories Bones:", EditorStyles.boldLabel);
                 var accessoriesTarget = this;
                 var accessoriesSo = new SerializedObject(accessoriesTarget);
                 var accessoriesTransformsProperty = accessoriesSo.FindProperty("AccessoriesTransforms");
@@ -131,20 +151,23 @@ public class DynamicBonesStudioWindow : EditorWindow
                         accessoriesSo.ApplyModifiedProperties();
                     }
                     Debug.Log("Auto Dynamic Bones - Finding common accessories");
-
+                }
+                if (GUILayout.Button("Apply Dynamic Bones"))
+                {
+                    AddDynamicBones();
                 }
                 break;
 
             // Studio tab
             case 1:
                 _selectedTabIndex = 1;
-                //EditorGUILayout.LabelField("Bone Exclusions:", EditorStyles.boldLabel);
-                //var exclusionsTarget = this;
-                //var exclusionsSo = new SerializedObject(exclusionsTarget);
-                //var exclusionTransformsProperty = exclusionsSo.FindProperty("ExclusionTransforms");
-                //EditorGUILayout.PropertyField(exclusionTransformsProperty, true);
-                //exclusionsSo.ApplyModifiedProperties();
 
+                // If avatar is not assigned exit
+                if (_avatar == null)
+                {
+                    EditorGUILayout.LabelField("Select an avatar in the basic setup tab to begin", EditorStyles.boldLabel);
+                    return;
+                }
 
                 //groupEnabled = EditorGUILayout.BeginToggleGroup("Default Bone Settings", groupEnabled);
                 //{
@@ -152,14 +175,100 @@ public class DynamicBonesStudioWindow : EditorWindow
                 //    myFloat = EditorGUILayout.Slider("Slider", myFloat, -3, 3);
                 //}
                 //EditorGUILayout.EndToggleGroup();
+                GUILayout.Label("Experimental features:", EditorStyles.boldLabel);
+                GUILayout.BeginHorizontal();
+                _isAutoRefreshEnabled = EditorGUILayout.ToggleLeft("Auto-refresh bones on state change", _isAutoRefreshEnabled);
+                if (!_isAutoRefreshEnabled && GUILayout.Button("Refresh bones"))
+                {
+                    _allDynamicBones = _avatar.GetComponentsInChildren<DynamicBone>().ToList();
+                    Debug.Log("Found "+_allDynamicBones.Count+" new dynamic bones.");
+                }
+                GUILayout.EndHorizontal();
+                //_isAutoApplyEnabled = EditorGUILayout.ToggleLeft("Auto-apply bone settings on stop", _isAutoApplyEnabled);
+                //if (EditorApplication.isPlaying && _isAutoApplyEnabled)
+                //{
+                //    tempBones = _allDynamicBones;
+                //}
+                if (EditorApplication.isPlaying)
+                { 
+                    if (GUILayout.Button("Save play-mode bone settings"))
+                    {
+                        _tempBones = _allDynamicBones;
+                        foreach (var dynamicBone in _allDynamicBones)
+                        {
+                            EditorPrefs.SetFloat(dynamicBone.name + "Damping", dynamicBone.m_Damping);
+                            EditorPrefs.SetFloat(dynamicBone.name + "Elasticity", dynamicBone.m_Elasticity);
+                            EditorPrefs.SetFloat(dynamicBone.name + "Stiffness", dynamicBone.m_Stiffness);
+                            EditorPrefs.SetFloat(dynamicBone.name + "Inert", dynamicBone.m_Inert);
+                            EditorPrefs.SetFloat(dynamicBone.name + "Radius", dynamicBone.m_Radius);
+                        }
+                        EditorPrefs.SetBool("DynamicBoneStudioDataSaved", true);
+                        Debug.Log("Prefs saved");
+                    }
+                }
+                if (EditorPrefs.HasKey("DynamicBoneStudioDataSaved"))
+                {
+                    if (GUILayout.Button("Load play-mode bone settings"))
+                    {
+                        foreach (var dynamicBone in _allDynamicBones)
+                        {
+                            UpdateDynamicBone(dynamicBone, true,
+                                EditorPrefs.GetFloat(dynamicBone.name + "Damping"),
+                                EditorPrefs.GetFloat(dynamicBone.name + "Elasticity"),
+                                EditorPrefs.GetFloat(dynamicBone.name + "Stiffness"),
+                                EditorPrefs.GetFloat(dynamicBone.name + "Inert"),
+                                EditorPrefs.GetFloat(dynamicBone.name + "Radius"));
+
+                            // Registry garbage collect
+                            EditorPrefs.DeleteKey(dynamicBone.name + "Damping");
+                            EditorPrefs.DeleteKey(dynamicBone.name + "Elasticity");
+                            EditorPrefs.DeleteKey(dynamicBone.name + "Stiffness");
+                            EditorPrefs.DeleteKey(dynamicBone.name + "Inert");
+                            EditorPrefs.DeleteKey(dynamicBone.name + "Radius");
+                        }
+                        EditorPrefs.DeleteKey("DynamicBoneStudioDataSaved");
+                    }
+                }
+                foreach (var dynamicBone in _allDynamicBones)
+                {
+                    if (dynamicBone == null)
+                        continue;
+                    EditorGUILayout.LabelField(dynamicBone.name, EditorStyles.boldLabel);
+                    UpdateDynamicBone(dynamicBone);
+                }
                 break;
         }
-
-        if (GUILayout.Button("Apply Dynamic Bones"))
-        {
-            AddDynamicBones();
-        }
     }
+
+    private static void UpdateDynamicBone(DynamicBone dynamicBone, bool isSetValue = false, float dampFloat = 0f, 
+                                                                    float elastFloat = 0f, float stiffFloat = 0f, 
+                                                                    float inertFloat = 0f, float radiusFloat = 0f)
+    {
+        var dynamicBoneTarget = dynamicBone;
+        var dynamicBoneSo = new SerializedObject(dynamicBoneTarget);
+        var damp = dynamicBoneSo.FindProperty("m_Damping");
+        var elast = dynamicBoneSo.FindProperty("m_Elasticity");
+        var stiff = dynamicBoneSo.FindProperty("m_Stiffness");
+        var inert = dynamicBoneSo.FindProperty("m_Inert");
+        var radius = dynamicBoneSo.FindProperty("m_Radius");
+        if (isSetValue)
+        {
+            damp.floatValue = dampFloat;
+            elast.floatValue = elastFloat;
+            stiff.floatValue = stiffFloat;
+            inert.floatValue = inertFloat;
+            radius.floatValue = radiusFloat;
+
+        }
+        EditorGUILayout.PropertyField(damp, true);
+        EditorGUILayout.PropertyField(elast, true);
+        EditorGUILayout.PropertyField(stiff, true);
+        EditorGUILayout.PropertyField(inert, true);
+        EditorGUILayout.PropertyField(radius, true);
+
+        dynamicBoneSo.ApplyModifiedProperties();
+    }
+
 
     private List<Transform> TryFindCommonAccessories()
     {
@@ -168,6 +277,10 @@ public class DynamicBonesStudioWindow : EditorWindow
         {
             return AccessoriesTransforms;
         }
+
+        // Clean list of any missing items
+        AccessoriesTransforms.RemoveAll(x => x == null);
+
         var accessoriesTempList = _commonAccessories
             .Select(commonAccessory =>
                 AllBones.FirstOrDefault(x => x.name.ToLowerInvariant().Contains(commonAccessory)))
@@ -242,12 +355,14 @@ public class DynamicBonesStudioWindow : EditorWindow
         var hairPreset = presets.FirstOrDefault(x => x.Type == "Hair");
         if (hairPreset != null)
         {
-            hairDynamicBone.m_UpdateRate = hairPreset.UpdateRate;
-            hairDynamicBone.m_Damping = hairPreset.Damping;
-            hairDynamicBone.m_Elasticity = hairPreset.Elasticity;
-            hairDynamicBone.m_Inert = hairPreset.Inert;
-            hairDynamicBone.m_Radius = hairPreset.Radius;
-            hairDynamicBone.m_Stiffness = hairPreset.Stiffness;
+            EditorUtility.SetDirty(hairDynamicBone);
+            UpdateDynamicBone(hairDynamicBone, true,
+                hairPreset.Damping,
+                hairPreset.Elasticity,
+                hairPreset.Stiffness,
+                hairPreset.Inert,
+                hairPreset.Radius
+                );
         }
 
         foreach (var accessory in AccessoriesTransforms)
