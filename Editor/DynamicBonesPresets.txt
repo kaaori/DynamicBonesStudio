@@ -1,0 +1,34 @@
+[AccessoryWhitelist]
+skirt=skirt
+gimmick_l=gimmick_l
+gimmick_r=gimmick_r
+ear=ear
+ear_l=ear_l
+ear_r=ear_r
+earr=earr
+earl=earl
+scarf=scarf
+tie=tie
+tail=tail
+breast_l=breast_l
+breast_r=breast_r
+bell=bell
+gimmickl=gimmickl
+gimmickr=gimmickr
+gimmick=gimmick
+[Default Dynamic Bone]
+Name=Default Dynamic Bone
+Damp=0.1
+Elasticity=0.1
+Stiff=0.1
+Inert=0
+Radius=0
+EndOffsetX=0
+EndOffsetY=0
+EndOffsetZ=0
+GravityX=0
+GravityY=0
+GravityZ=0
+ForceX=0
+ForceY=0
+ForceZ=0

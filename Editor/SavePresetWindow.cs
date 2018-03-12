@@ -4,13 +4,12 @@ using UnityEditor;
 class SavePresetWindow : EditorWindow
 {
 
-    public string presetName = "";
-    private bool isClicked;
+    public string PresetName = "";
+    private bool _isClicked;
 
     void OnGUI()
     {
-        presetName = EditorGUILayout.TextField("Preset Name", presetName);
-
+        PresetName = EditorGUILayout.TextField("Preset Name", PresetName);
         if (GUILayout.Button("Save Preset"))
         {
             OnClickSavePrefab();
@@ -20,22 +19,19 @@ class SavePresetWindow : EditorWindow
 
     public string GetPresetName()
     {
-        return isClicked ? 
-            presetName : "";
+        return _isClicked ? 
+            PresetName : "";
     }
 
     void OnClickSavePrefab()
     {
-        presetName = presetName.Trim();
-        isClicked = true;
-        if (string.IsNullOrEmpty(presetName))
+        PresetName = PresetName.Trim();
+        _isClicked = true;
+        if (string.IsNullOrEmpty(PresetName))
         {
             EditorUtility.DisplayDialog("Unable to save Preset", "Please specify a valid Preset name.", "Close");
             return;
         }
-
-
-
         Close();
     }
 

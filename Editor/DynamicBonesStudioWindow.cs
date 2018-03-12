@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Assertions.Must;
@@ -44,50 +45,49 @@ public class DynamicBonesStudioWindow : EditorWindow
 {
     // Interface values
     private int _selectedTabIndex;
-
-    private bool _isAutoRefreshEnabled;
+    private bool _isAutoRefreshEnabled = true;
     private bool _isDataSaved;
     private bool _isOptionsShowing;
+    private bool _isAskForBoneNameEnabled;
+    private bool _isAboutShowing = true;
+    private bool _isPresetNameSet;
+    private bool _isEditorLastStatePlaying;
     private string _itemToAddToWhitelist = "Enter item name here";
-    private IniFile _configFile = null;
+    private Vector2 _studioScrollPos;
+
+    private IniFile _configFile;
+
+    private GameObject _avatar;
+    private Animator _avatarAnim;
+
+    private List<DynamicBone> _allDynamicBones = new List<DynamicBone>();
+    private List<DynamicBonesPreset> _dynamicBonePresets = new List<DynamicBonesPreset>();
+    //private List<Transform> _accessoriesBones = new List<Transform>();
 
     // Default values if ini file fails to load.
     private List<string> _commonAccessories =
         new List<string> { "skirt", "gimmick_l", "gimmick_r", "earl", "earr", "ear_l", "ear_r", "scarf", "tie", "tail", "breast_l", "breast_r", "bell" };
 
-    private GameObject _avatar = null;
-    private Animator _avatarAnim = null;
+    private Transform _hairBone;
 
-    private Vector2 scrollPos;
-    private Vector3 vec3Zero = Vector3.zero;
-
-    private List<DynamicBone> _allDynamicBones = new List<DynamicBone>();
-    private List<DynamicBonesPreset> _dynamicBonePresets = new List<DynamicBonesPreset>();
-
-    private bool _isEditorLastStatePlaying;
-
-    private Transform _hipsBone = null;
-    private Transform _hairBone = null;
-    private Transform _neckBone = null;
-    private List<Transform> _accessoriesBones = null;
-
+    // TODO
     //private SerializedProperty exclusions = null;
+    //private SerializedProperty colliders = null;
 
     [MenuItem("Window/Dynamic Bones Studio")]
     public static void ShowWindow()
     {
-        EditorWindow.GetWindow(typeof(DynamicBonesStudioWindow));
+        EditorWindow.GetWindow(typeof(DynamicBonesStudioWindow), false, "Dynamic Bones Studio");
     }
 
     public List<Transform> ExclusionTransforms = new List<Transform>();
     public List<Transform> BonesTransforms = new List<Transform>();
     public List<Transform> AccessoriesTransforms = new List<Transform>();
-
+    
     public List<Transform> AllBones = new List<Transform>();
-    private bool _isAskForBoneNameEnabled;
-    private bool _isAboutShowing;
+
+
     private SavePresetWindow _presetSaveInstance;
-    private bool _isPresetNameSet;
     private string _cfgFilePath;
     private int _presetChoiceIndex;
 
@@ -101,7 +101,7 @@ public class DynamicBonesStudioWindow : EditorWindow
 
     void OnEnable()
     {
-        _cfgFilePath = Application.dataPath + "/Kaori/DynamicBonesStudio/Editor/DynamicBonesPresets.cfg";
+        _cfgFilePath = Application.dataPath + "/Kaori/DynamicBonesStudio/Editor/DynamicBonesPresets.txt";
     }
 
     void OnInspectorUpdate()
@@ -111,33 +111,60 @@ public class DynamicBonesStudioWindow : EditorWindow
 
     void OnGUI()
     {
-        EditorGUILayout.BeginVertical();
-
-        _isOptionsShowing = EditorGUILayout.Foldout(_isOptionsShowing, "Options");
+        if (!File.Exists(_cfgFilePath))
+        {
+            if (GUILayout.Button("No config file found! Create here to create one.", new []{GUILayout.Height(100)}))
+            {
+                InitConfigFile();
+            }
+            return;
+        }
+        EditorGUILayout.BeginHorizontal();
+        _isOptionsShowing = GUILayout.Toggle(_isOptionsShowing, "Show Options", EditorStyles.toolbarButton, new[] { GUILayout.ExpandWidth(false) });
+        _selectedTabIndex = GUILayout.Toolbar(_selectedTabIndex, new string[] {"Basic setup", "Studio"}, EditorStyles.toolbarButton);
+        EditorApplication.playmodeStateChanged += HandleOnPlayModeChanged;
+        EditorGUILayout.EndHorizontal();
+    
         if (_isOptionsShowing)
         {
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             EditorGUILayout.LabelField("Add item to common accessory whitelist:", EditorStyles.boldLabel);
             EditorGUI.indentLevel++;
             EditorGUILayout.BeginHorizontal();
             GUI.SetNextControlName("WhitelistTextField");
             _itemToAddToWhitelist = EditorGUILayout.TextField(_itemToAddToWhitelist);
-            if (GUILayout.Button("Add item") || (Event.current.keyCode == KeyCode.Return && GUI.GetNameOfFocusedControl() == "WhitelistTextField"))
+            if (GUILayout.Button("Add item") /*|| (Event.current.keyCode == KeyCode.Return && GUI.GetNameOfFocusedControl() == "WhitelistTextField")*/)
             {
                 if (_configFile == null)
                 {
                     InitConfigFile();
                 }
                 _configFile.SetValue("AccessoryWhitelist", _itemToAddToWhitelist.ToLowerInvariant(), _itemToAddToWhitelist.ToLowerInvariant());
-                //GUI.FocusControl("WhitelistTextField");
+                _configFile.Save(_cfgFilePath);
+                _configFile.Refresh();
+
             }
             EditorGUILayout.EndHorizontal();
+            if (GUILayout.Button("Reset All Settings", new []{GUILayout.ExpandWidth(false)}))
+            {
+                var result = EditorUtility.DisplayDialog("Confirm", "Are you sure you wish to reset all settings?",
+                    "Yes", "Cancel");
+                if (result)
+                {
+                    _avatar = null;
+                    AccessoriesTransforms.Clear();
+                    _hairBone = null;
+                    _isAutoRefreshEnabled = false;
+                    _dynamicBonePresets.Clear();
+                    _allDynamicBones.Clear();
+                }
+
+            }
             EditorGUI.indentLevel--;
+            EditorGUILayout.Space();
+            EditorGUILayout.Space();
+            EditorGUILayout.EndVertical();
         }
-
-        EditorGUILayout.EndVertical();
-        _selectedTabIndex = GUILayout.Toolbar(_selectedTabIndex, new string[] {"Basic setup", "Studio"});
-        EditorApplication.playmodeStateChanged += HandleOnPlayModeChanged;
-
         switch (_selectedTabIndex)
         {
             // Basic setup tab
@@ -160,7 +187,7 @@ public class DynamicBonesStudioWindow : EditorWindow
                     else
                     {
                         _avatar = null;
-                        return;
+                        break;
                     }
                 }
 
@@ -170,17 +197,20 @@ public class DynamicBonesStudioWindow : EditorWindow
                     EditorUtility.DisplayDialog("Error",
                         "There is no animator on this Avatar!", "Ok");
                     _avatar = null;
-                    return;
+                    break;
                 }
 
                 // If avatar is not assigned exit
                 if (_avatar == null)
-                    return;
+                {
+                    //EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                    EditorGUILayout.HelpBox("To begin, drag a new avatar into the box above!", MessageType.Info);
+                    //EditorGUILayout.EndVertical();
+                    break;
+                }
 
-                _avatarAnim = _avatar.GetComponent<Animator>();
+                    _avatarAnim = _avatar.GetComponent<Animator>();
                 AllBones = _avatarAnim.GetComponentsInChildren<Transform>().ToList();
-                _hipsBone = _avatarAnim.GetBoneTransform(HumanBodyBones.Hips);
-                _neckBone = _avatarAnim.GetBoneTransform(HumanBodyBones.Neck);
 
                 EditorGUILayout.LabelField("Hair root Bone:", EditorStyles.boldLabel);
                 // Try to automatically find hair root.
@@ -202,11 +232,15 @@ public class DynamicBonesStudioWindow : EditorWindow
                     AccessoriesTransforms = TryFindCommonAccessories();
                     if (AccessoriesTransforms != null)
                     {
+                        Debug.Log("Auto Dynamic Bones - Finding common accessories");
                         accessoriesTransformsProperty = accessoriesSo.FindProperty("AccessoriesTransforms");
                         EditorGUILayout.PropertyField(accessoriesTransformsProperty, true);
                         accessoriesSo.ApplyModifiedProperties();
                     }
-                    Debug.Log("Auto Dynamic Bones - Finding common accessories");
+                    else
+                    {
+                        Debug.Log("Something went wrong finding accessories");
+                    }
                 }
                 if (GUILayout.Button("Apply Dynamic Bones"))
                 {
@@ -215,10 +249,11 @@ public class DynamicBonesStudioWindow : EditorWindow
                         var result = EditorUtility.DisplayDialog("Warning", "No hair transform set, continue?", "Yes", "No");
                         if (!result)
                         {
-                            return;
+                            break;
                         }
                     }
                     AddDynamicBones();
+                    _allDynamicBones = _avatar.GetComponentsInChildren<DynamicBone>().ToList();
                 }
                 break;
             }
@@ -233,35 +268,42 @@ public class DynamicBonesStudioWindow : EditorWindow
                 {
                     EditorGUILayout.LabelField("Select an avatar in the basic setup tab to begin",
                         EditorStyles.boldLabel);
-                    return;
+                    break;
                 }
 
+                /* Experimental Features */
                 GUILayout.Label("Experimental features:", EditorStyles.boldLabel);
 
                 GUILayout.BeginHorizontal();
                 _isAutoRefreshEnabled =
-                    EditorGUILayout.ToggleLeft("Auto-refresh bones on state change", _isAutoRefreshEnabled);
+                    EditorGUILayout.ToggleLeft("Auto-refresh bones on state change\n(Enables saving bone settings from play mode)", _isAutoRefreshEnabled, new []{GUILayout.Height(30)});
+
+                GUILayout.EndHorizontal();
+
+                _isAskForBoneNameEnabled =
+                EditorGUILayout.ToggleLeft("Ask for name when saving dynamic bone presets", _isAskForBoneNameEnabled);
+
+                EditorGUILayout.BeginHorizontal();
 
                 if (GUILayout.Button("Refresh bones"))
                 {
                     _allDynamicBones = _avatar.GetComponentsInChildren<DynamicBone>().ToList();
                     Debug.Log("Found " + _allDynamicBones.Count + " new dynamic bones.");
                 }
-                GUILayout.EndHorizontal();
-
-                _isAskForBoneNameEnabled =
-                    EditorGUILayout.ToggleLeft("Ask for name when saving dynamic bone presets", _isAskForBoneNameEnabled);
 
                 if (GUILayout.Button("Refresh presets"))
                 {
                     LoadDynamicBonePresets();
                 }
+                EditorGUILayout.EndHorizontal();
+
+                /* End Experimental Features */
 
                 if (EditorApplication.isPlaying)
                 {
-                    EditorGUILayout.LabelField("Will not save colliders or exclusions, beware", EditorStyles.boldLabel);
-                    if (GUILayout.Button("Save play-mode bone settings"))
+                    if (_isAutoRefreshEnabled && GUILayout.Button("Save play-mode bone settings"))
                     {
+                        EditorGUILayout.LabelField("^Will not save colliders or exclusions, beware", EditorStyles.boldLabel);
                         foreach (var dynamicBone in _allDynamicBones)
                         {
                             EditorPrefs.SetFloat(dynamicBone.name + "Damping", dynamicBone.m_Damping);
@@ -297,7 +339,7 @@ public class DynamicBonesStudioWindow : EditorWindow
 
                 if (EditorPrefs.HasKey("DynamicBoneStudioDataSaved"))
                 {
-                    if (GUILayout.Button("Load play-mode bone settings"))
+                    if (_isAutoRefreshEnabled && GUILayout.Button("Load play-mode bone settings"))
                     {
                         foreach (var dynamicBone in _allDynamicBones)
                         {
@@ -344,7 +386,8 @@ public class DynamicBonesStudioWindow : EditorWindow
                     }
                 }
 
-                scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
+                /* Bone and preset scrollview */
+                _studioScrollPos = EditorGUILayout.BeginScrollView(_studioScrollPos);
                 {
                     foreach (var dynamicBone in _allDynamicBones)
                     {
@@ -373,15 +416,22 @@ public class DynamicBonesStudioWindow : EditorWindow
                                     LoadDynamicBonePresets();
                                 }
                             }
-                            if (_isPresetNameSet && _presetSaveInstance.GetPresetName() != "")
-                            {
-                                //SO SCUFFED LMAO
-                                SaveDynamicBonePreset(_presetSaveInstance.presetName, dynamicBone);
-                                _presetSaveInstance.presetName = "";
-                                _presetSaveInstance = null;
-                                _isPresetNameSet = false;
-                                LoadDynamicBonePresets();
-                            }
+                                try
+                                {
+                                    if (_isPresetNameSet && _presetSaveInstance.GetPresetName() != "")
+                                    {
+                                        //SO SCUFFED LMAO
+                                        SaveDynamicBonePreset(_presetSaveInstance.PresetName, dynamicBone);
+                                        _presetSaveInstance.PresetName = "";
+                                        _presetSaveInstance = null;
+                                        _isPresetNameSet = false;
+                                        LoadDynamicBonePresets();
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.Log(ex);
+                                }
                             GUILayout.EndHorizontal();
                             GUILayout.BeginHorizontal();
                             if (_dynamicBonePresets.Count > 0)
@@ -401,6 +451,15 @@ public class DynamicBonesStudioWindow : EditorWindow
                                     {
                                         Debug.Log("Preset was null");
                                     }
+
+                                }
+                                if (_dynamicBonePresets.Count > 0 && GUILayout.Button("Delete"))
+                                {
+                                    RemovePresetFromConfig(_dynamicBonePresets.ElementAtOrDefault(_presetChoiceIndex)
+                                        .Name);
+                                    _dynamicBonePresets.Remove(
+                                        _dynamicBonePresets.ElementAtOrDefault(_presetChoiceIndex));
+                                    LoadDynamicBonePresets();
                                 }
                             }
 
@@ -412,18 +471,18 @@ public class DynamicBonesStudioWindow : EditorWindow
                 }
 
                 EditorGUILayout.EndScrollView();
-
+                /* End bone and preset scrollview */
                 break;
             }
         }
-        
+
         _isAboutShowing = EditorGUILayout.Foldout(_isAboutShowing, "About");
 
         if (_isAboutShowing)
         {
             GUILayout.BeginVertical(EditorStyles.helpBox);
             EditorGUI.indentLevel++;
-            EditorGUILayout.LabelField("Dynamic Bones Studio v0.01\n" +
+            EditorGUILayout.LabelField("Dynamic Bones Studio v0.02\n" +
                                     "by Kaori\n\n" +
                                     "Feedback or bugs can be posted to GitHub or sent to me through discord:\n" +
                                     "Kaori#0420", EditorStyles.textArea);
@@ -443,11 +502,28 @@ public class DynamicBonesStudioWindow : EditorWindow
         }
     }
 
+    private void RemovePresetFromConfig(string presetName)
+    {
+        if (presetName == null)
+        {
+            return;
+        }
+        if (_configFile == null)
+        {
+            InitConfigFile();
+        }
+        _configFile.DeleteSection(presetName);
+    }
+
     private DynamicBonesPreset LoadSingleDynamicBonePreset(string presetName)
     {
         if (_configFile == null)
         {
             InitConfigFile();
+        }
+        if (presetName == null)
+        {
+            return null;
         }
         var section = _configFile.GetSection(presetName);
         var dynamicBonePreset = new DynamicBonesPreset();
@@ -534,7 +610,11 @@ public class DynamicBonesStudioWindow : EditorWindow
                 }
                 //var section = _configFile.GetSection(configFileSectionName);
                 var dynamicBonePreset = LoadSingleDynamicBonePreset(configFileSectionName);
-                _dynamicBonePresets.Add(dynamicBonePreset);
+                if (dynamicBonePreset.Name != null)
+                {
+                    _dynamicBonePresets.Add(dynamicBonePreset);
+                }
+                
             }
         }
         else
@@ -638,14 +718,15 @@ public class DynamicBonesStudioWindow : EditorWindow
         {
             return AccessoriesTransforms;
         }
-        //if (configFileWhitelist != null)
-        //{
-        //    _commonAccessories = configFileWhitelist.Values.ToList();
-        //}
-
-        // Clean list of any missing items
-        AccessoriesTransforms.RemoveAll(x => x == null);
-
+        if (AccessoriesTransforms != null && AccessoriesTransforms.Count >= 0)
+        {
+            // Clean list of any missing items
+            AccessoriesTransforms.RemoveAll(x => x == null);
+        }
+        foreach (var commonAccessory in _commonAccessories)
+        {
+            Debug.Log(commonAccessory);
+        }
         var accessoriesTempList = _commonAccessories
             .Select(commonAccessory =>
                 AllBones.FirstOrDefault(x => x.name.ToLowerInvariant().Contains(commonAccessory)))
@@ -682,9 +763,10 @@ public class DynamicBonesStudioWindow : EditorWindow
                 accessoriesTempList.Remove(ear);
             }
         }
-
-
-        accessoriesTempList = accessoriesTempList.Union(prevAccessories).ToList();
+        if (prevAccessories != null)
+        {
+            accessoriesTempList = accessoriesTempList.Union(prevAccessories).ToList();
+        }
         return accessoriesTempList.Count > 0 ? accessoriesTempList : null;
     }
 
@@ -706,7 +788,7 @@ public class DynamicBonesStudioWindow : EditorWindow
 
     public void AddDynamicBones()
     {
-        var presets = LoadIniPreset();
+        LoadDynamicBonePresets();
         if (_avatar.GetComponentsInChildren<DynamicBone>() != null)
         {
             var result = EditorUtility.DisplayDialog("Warning!",
@@ -722,37 +804,34 @@ public class DynamicBonesStudioWindow : EditorWindow
                 DestroyImmediate(dynamicBone);
             }
         }
-        Debug.Log("Auto Dynamic Bones - Applying dynamic bones");
+
         if (_hairBone != null)
         {
+            Debug.Log("Auto Dynamic Bones - Applying dynamic bones");
             var hairDynamicBone = _hairBone.gameObject.AddComponent<DynamicBone>();
             hairDynamicBone.m_Root = _hairBone;
 
-            Debug.Log("Adding dynamic bones.");
-
-            // TODO: Replace when new preset system is in place
-            var hairPreset = presets.FirstOrDefault(x => x.Name == "Hair");
+            var hairPreset = _dynamicBonePresets.FirstOrDefault(x => x.Name == "Hair");
             if (hairPreset != null)
             {
                 EditorUtility.SetDirty(hairDynamicBone);
                 UpdateDynamicBone(hairDynamicBone, true,
-                    hairPreset.Damping,
-                    hairPreset.Elasticity,
-                    hairPreset.Stiffness,
-                    hairPreset.Inert,
-                    hairPreset.Radius
-                );
+                    dynamicBonePreset:_dynamicBonePresets.FirstOrDefault(x=>x.Name == "Hair"));
             }
         }
-        
 
-        foreach (var accessory in AccessoriesTransforms)
+        if (AccessoriesTransforms != null)
         {
-            var accessoryBone = accessory.gameObject.AddComponent<DynamicBone>();
-            accessoryBone.m_Root = accessory;
+            Debug.Log("Auto Dynamic Bones - Adding accessory bones");
+            foreach (var accessory in AccessoriesTransforms)
+            {
+                var accessoryBone = accessory.gameObject.AddComponent<DynamicBone>();
+                accessoryBone.m_Root = accessory;
+            }
+            Debug.Log("Auto Dynamic Bones - Done!");
         }
-    }
 
+    }
 
     private void SaveDynamicBonePreset(string presetName, DynamicBone bone)
     {
@@ -786,9 +865,6 @@ public class DynamicBonesStudioWindow : EditorWindow
         _configFile.SetValue(presetName, "ForceX", bone.m_Force.x.ToString());
         _configFile.SetValue(presetName, "ForceY", bone.m_Force.y.ToString());
         _configFile.SetValue(presetName, "ForceZ", bone.m_Force.z.ToString());
-
-
-
     }
     /** TODO Presets
 *  - In "studio" tab
@@ -800,9 +876,15 @@ public class DynamicBonesStudioWindow : EditorWindow
     private void InitConfigFile()
     {
         //Application.dataPath + "/Kaori/DynamicBonesStudio/Editor/DynamicBonesPresets.cfg"
-        _configFile = File.Exists(_cfgFilePath) 
-            ? new IniFile(Application.dataPath + "/Kaori/DynamicBonesStudio/Editor/DynamicBonesPresets.cfg") 
-            : new IniFile();
+        if (File.Exists(_cfgFilePath))
+        {
+            _configFile = new IniFile(_cfgFilePath);
+        }
+        else
+        {
+            _configFile = new IniFile();
+            _configFile.Save(_cfgFilePath);
+        }
         //_configFile.Save(Application.dataPath + "/Kaori/DynamicBonesStudio/Editor/DynamicBonesPresets.cfg");
     }
 
@@ -818,54 +900,5 @@ public class DynamicBonesStudioWindow : EditorWindow
             _commonAccessories = accessoryWhitelist.Values.ToList();
         }
         return accessoryWhitelist;
-    }
-
-    public List<DynamicBonesPreset> LoadIniPreset()
-    {
-        if (!File.Exists(Application.dataPath + "/Kaori/DynamicBonesStudio/Editor/DynamicBonesPresets.cfg"))
-        {
-            InitConfigFile();
-        }
-        var cfgFile = new IniFile(Application.dataPath + "/Kaori/DynamicBonesStudio/Editor/DynamicBonesPresets.cfg");
-
-        // TODO: Write default preset values
-        // TODO: Gravity/Force etc
-        // Hair defaults
-        cfgFile.SetValue("DynamicBonePreset", "HairUpdateRate", "60" );
-        cfgFile.SetValue("DynamicBonePreset", "HairType", "Hair" );
-        cfgFile.SetValue("DynamicBonePreset", "HairDamp", "0.2");
-        cfgFile.SetValue("DynamicBonePreset", "HairElasticity", "0.05");
-        cfgFile.SetValue("DynamicBonePreset", "HairInert", "0");
-        cfgFile.SetValue("DynamicBonePreset", "HairRadius", "0");
-        cfgFile.SetValue("DynamicBonePreset", "HairStiff", "0.8");
-
-        //cfgFile.Save(Application.dataPath + "/Kaori/DynamicBonesStudio/Editor/DynamicBonesPresets.cfg");
-
-        return ReadPresets(cfgFile);
-    }
-
-    private List<DynamicBonesPreset> ReadPresets(IniFile ConfigFile)
-    {
-        try
-        {
-            var dynamicbonesPresets = new List<DynamicBonesPreset>();
-            var hairPreset = new DynamicBonesPreset
-            {
-                Name = ConfigFile.GetValue("DynamicBonePreset", "HairType"),
-                UpdateRate = float.Parse(ConfigFile.GetValue("DynamicBonePreset", "HairUpdateRate")),
-                Damping = float.Parse(ConfigFile.GetValue("DynamicBonePreset", "HairDamp")),
-                Elasticity = float.Parse(ConfigFile.GetValue("DynamicBonePreset", "HairElasticity")),
-                Inert = float.Parse(ConfigFile.GetValue("DynamicBonePreset", "HairInert")),
-                Radius = float.Parse(ConfigFile.GetValue("DynamicBonePreset", "HairRadius")),
-                Stiffness = float.Parse(ConfigFile.GetValue("DynamicBonePreset", "HairStiff"))
-            };
-            dynamicbonesPresets.Add(hairPreset);
-            return dynamicbonesPresets;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError(ex);
-        }
-        return null;
     }
 }

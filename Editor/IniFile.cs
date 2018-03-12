@@ -10,6 +10,8 @@ using System.Text.RegularExpressions;
 /// 
 /// Version 1, 2009-08-15
 /// http://www.Stum.de
+/// Version 2, Modified 2018-03-11
+/// Kaori
 /// </summary>
 /// <remarks>
 /// It supports the simple .INI Format:
@@ -62,6 +64,7 @@ public class IniFile
     /// <returns>The value of the given key in the given section, or NULL if not found</returns>
     public string GetValue(string sectionName, string key)
     {
+        this.Refresh();
         if (_iniFileContent.ContainsKey(sectionName) && _iniFileContent[sectionName].ContainsKey(key))
             return _iniFileContent[sectionName][key];
         else
@@ -79,6 +82,25 @@ public class IniFile
         if (!_iniFileContent.ContainsKey(sectionName)) _iniFileContent[sectionName] = new Dictionary<string, string>();
         _iniFileContent[sectionName][key] = value;
 
+        this.Save(Filename);
+    }
+
+    public void DeleteValue(string sectionName, string key)
+    {
+        this.Refresh();
+        if (!_iniFileContent.ContainsKey(sectionName) && !_iniFileContent[sectionName].ContainsKey(key)) return;
+        _iniFileContent.Remove(_iniFileContent[sectionName][key]);
+        this.Save(Filename);
+    }
+
+    public void DeleteSection(string sectionName)
+    {
+        this.Refresh();
+        if (!_iniFileContent.ContainsKey(sectionName)) return;
+
+        _iniFileContent[sectionName].Clear();
+        _iniFileContent.Remove(sectionName);
+        
         this.Save(Filename);
     }
 
@@ -131,7 +153,7 @@ public class IniFile
                     {
                         currentSectionName = m.Groups["SectionName"].Value;
                         SectionNames.Add(currentSectionName);
-                        UnityEngine.Debug.Log("Added to section names");
+                        //UnityEngine.Debug.Log("Added to section names");
                     }
                     else
                     {
@@ -175,7 +197,7 @@ public class IniFile
     /// </summary>
     /// <param name="filename"></param>
     /// <returns></returns>
-    private bool Save(string filename)
+    public bool Save(string filename)
     {
         var sb = new StringBuilder();
         if (_iniFileContent != null)
