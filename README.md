@@ -11,7 +11,21 @@ A useful tool for quickly setting up dynamic bones with VRChat Avatars
 After applying your bones, you can switch to the studio tab to change the dynamic bone settings from one window.
 If you make some changes you want to save in play mode, simply click the save button and then once you exit play mode, click the load button that appears. 
 
+## Presets;
+You can save and load presets for quick testing/configuring of avatars. 
+
+To do so:
+1. Go to the studio tab after adding dynamic bones.
+2. Configure your bone to your preferred settings (NOTE: does NOT save colliders or exclusions at this time...) 
+*Tick "Ask for name when saving dynamic bone presets" to customise the name they are saved as if desired.*
+3. Click "Save as preset"
+
+To load presets;
+1. Once a preset has been saved, click "refresh presets" if the drop down boxes do not appear.
+2. Select the preset by name from the dropdown and click "load"
+
+
+
 
 # Planned features;
-- User defined presets to save dynamic bone values for use on future models
-- User defined whitelist for Accessories to allow for consistentcy across models
+- Automatic adding of Colliders to fingers/hips/head (manual scaling probably will be needed)
