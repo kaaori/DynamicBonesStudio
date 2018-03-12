@@ -1,5 +1,8 @@
 # DynamicBonesStudio
-A useful tool for quickly setting up dynamic bones with VRChat Avatars
+A useful tool for quickly setting up and manipulating dynamic bones with VRChat Avatars
+
+# Required unity assets
+* Dynamic Bone
 
 # Getting started / How to use;
 1. Open the Dynamic Bones Studio editor window. (Window -> Dynamic Bones Studio)
@@ -11,16 +14,16 @@ A useful tool for quickly setting up dynamic bones with VRChat Avatars
 After applying your bones, you can switch to the studio tab to change the dynamic bone settings from one window.
 If you make some changes you want to save in play mode, simply click the save button and then once you exit play mode, click the load button that appears. 
 
-## Presets;
+# Presets;
 You can save and load presets for quick testing/configuring of avatars. 
 
-To do so:
+### To do so:
 1. Go to the studio tab after adding dynamic bones.
 2. Configure your bone to your preferred settings (NOTE: does NOT save colliders or exclusions at this time...) 
 *Tick "Ask for name when saving dynamic bone presets" to customise the name they are saved as if desired.*
 3. Click "Save as preset"
 
-To load presets;
+### To load presets;
 1. Once a preset has been saved, click "refresh presets" if the drop down boxes do not appear.
 2. Select the preset by name from the dropdown and click "load"
 
