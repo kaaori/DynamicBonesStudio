@@ -199,7 +199,6 @@ public class DynamicBonesStudioWindow : EditorWindow
                     _avatar = null;
                     break;
                 }
-
                 // If avatar is not assigned exit
                 if (_avatar == null)
                 {
@@ -208,7 +207,13 @@ public class DynamicBonesStudioWindow : EditorWindow
                     //EditorGUILayout.EndVertical();
                     break;
                 }
-
+                if (!_avatar.GetComponent<Animator>().avatar.isHuman)
+                {
+                    EditorUtility.DisplayDialog("Error",
+                        "This model is not humanoid!\nDynamic bones studio only works with humanoid rigs at the moment.", "ok");
+                    _avatar = null;
+                    return;
+                }
                     _avatarAnim = _avatar.GetComponent<Animator>();
                 AllBones = _avatarAnim.GetComponentsInChildren<Transform>().ToList();
 
