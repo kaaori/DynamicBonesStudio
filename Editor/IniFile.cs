@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -30,6 +32,7 @@ using System.Text.RegularExpressions;
 public class IniFile
 {
     private Dictionary<string, Dictionary<string, string>> _iniFileContent;
+    public List<string> SectionNames = new List<string>();
     private string Filename;
     private readonly Regex _sectionRegex = new Regex(@"(?<=\[)(?<SectionName>[^\]]+)(?=\])");
     private readonly Regex _keyValueRegex = new Regex(@"(?<Key>[^=]+)=(?<Value>.+)");
@@ -41,6 +44,14 @@ public class IniFile
         _iniFileContent = new Dictionary<string, Dictionary<string, string>>();
         Filename = filename;
         if (filename != null) Load(filename);
+    }
+
+    public void Refresh()
+    {
+        if (Filename != "")
+        {
+            Load(Filename);
+        }
     }
 
     /// <summary>
@@ -109,6 +120,7 @@ public class IniFile
         {
             try
             {
+                SectionNames.Clear();
                 var content = File.ReadAllLines(filename);
                 _iniFileContent = new Dictionary<string, Dictionary<string, string>>();
                 string currentSectionName = string.Empty;
@@ -118,6 +130,8 @@ public class IniFile
                     if (m.Success)
                     {
                         currentSectionName = m.Groups["SectionName"].Value;
+                        SectionNames.Add(currentSectionName);
+                        UnityEngine.Debug.Log("Added to section names");
                     }
                     else
                     {
@@ -143,8 +157,9 @@ public class IniFile
                 }
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                UnityEngine.Debug.Log(ex);
                 return false;
             }
 
