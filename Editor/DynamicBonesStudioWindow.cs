@@ -86,7 +86,6 @@ public class DynamicBonesStudioWindow : EditorWindow
     
     public List<Transform> AllBones = new List<Transform>();
 
-
     private SavePresetWindow _presetSaveInstance;
     private string _cfgFilePath;
     private int _presetChoiceIndex;
@@ -311,6 +310,7 @@ public class DynamicBonesStudioWindow : EditorWindow
                         EditorGUILayout.LabelField("^Will not save colliders or exclusions, beware", EditorStyles.boldLabel);
                         foreach (var dynamicBone in _allDynamicBones)
                         {
+                            EditorPrefs.SetFloat(dynamicBone.name + "UpdateRate", dynamicBone.m_UpdateRate);
                             EditorPrefs.SetFloat(dynamicBone.name + "Damping", dynamicBone.m_Damping);
                             EditorPrefs.SetFloat(dynamicBone.name + "Elasticity", dynamicBone.m_Elasticity);
                             EditorPrefs.SetFloat(dynamicBone.name + "Stiffness", dynamicBone.m_Stiffness);
@@ -349,6 +349,7 @@ public class DynamicBonesStudioWindow : EditorWindow
                         foreach (var dynamicBone in _allDynamicBones)
                         {
                             UpdateDynamicBone(dynamicBone, true,
+                                EditorPrefs.GetFloat(dynamicBone.name + "UpdateRate"),
                                 EditorPrefs.GetFloat(dynamicBone.name + "Damping"),
                                 EditorPrefs.GetFloat(dynamicBone.name + "Elasticity"),
                                 EditorPrefs.GetFloat(dynamicBone.name + "Stiffness"),
@@ -369,6 +370,7 @@ public class DynamicBonesStudioWindow : EditorWindow
                                 );
 
                             // Registry garbage collect
+                            EditorPrefs.DeleteKey(dynamicBone.name + "UpdateRate");
                             EditorPrefs.DeleteKey(dynamicBone.name + "Damping");
                             EditorPrefs.DeleteKey(dynamicBone.name + "Elasticity");
                             EditorPrefs.DeleteKey(dynamicBone.name + "Stiffness");
@@ -520,201 +522,6 @@ public class DynamicBonesStudioWindow : EditorWindow
         _configFile.DeleteSection(presetName);
     }
 
-    private DynamicBonesPreset LoadSingleDynamicBonePreset(string presetName)
-    {
-        if (_configFile == null)
-        {
-            InitConfigFile();
-        }
-        if (presetName == null)
-        {
-            return null;
-        }
-        var section = _configFile.GetSection(presetName);
-        var dynamicBonePreset = new DynamicBonesPreset();
-        var tempOffsetVec3 = Vector3.zero;
-        var tempGravityVec3 = Vector3.zero;
-        var tempForceVec3 = Vector3.zero;
-        foreach (var sectionKey in section.Keys)
-        {
-            switch (sectionKey)
-            {
-                case "Name":
-                    dynamicBonePreset.Name = section[sectionKey];
-                    break;
-                case "Damp":
-                    dynamicBonePreset.Damping = float.Parse(section[sectionKey]);
-                    break;
-                case "Elasticity":
-                    dynamicBonePreset.Elasticity = float.Parse(section[sectionKey]);
-                    break;
-                case "Stiff":
-                    dynamicBonePreset.Stiffness = float.Parse(section[sectionKey]);
-                    break;
-                case "Inert":
-                    dynamicBonePreset.Inert = float.Parse(section[sectionKey]);
-                    break;
-                case "Radius":
-                    dynamicBonePreset.Radius = float.Parse(section[sectionKey]);
-                    break;
-
-                case "EndOffsetX":
-                    tempOffsetVec3.x = float.Parse(section[sectionKey]);
-                    break;
-                case "EndOffsetY":
-                    tempOffsetVec3.y = float.Parse(section[sectionKey]);
-                    break;
-                case "EndOffsetZ":
-                    tempOffsetVec3.z = float.Parse(section[sectionKey]);
-                    break;
-
-                case "GravityX":
-                    tempGravityVec3.x = float.Parse(section[sectionKey]);
-                    break;
-                case "GravityY":
-                    tempGravityVec3.y = float.Parse(section[sectionKey]);
-                    break;
-                case "GravityZ":
-                    tempGravityVec3.z = float.Parse(section[sectionKey]);
-                    break;
-
-                case "ForceX":
-                    tempForceVec3.x = float.Parse(section[sectionKey]);
-                    break;
-                case "ForceY":
-                    tempForceVec3.y = float.Parse(section[sectionKey]);
-                    break;
-                case "ForceZ":
-                    tempForceVec3.z = float.Parse(section[sectionKey]);
-                    break;
-
-            }
-        }
-        dynamicBonePreset.EndOffset = tempOffsetVec3;
-        dynamicBonePreset.Gravity = tempGravityVec3;
-        dynamicBonePreset.Force = tempForceVec3;
-        return dynamicBonePreset;
-    }
-
-    private void LoadDynamicBonePresets()
-    {
-        if (_configFile == null)
-        {
-            InitConfigFile();
-        }
-
-        _configFile.Refresh();
-
-        if (_configFile.SectionNames != null)
-        {
-            foreach (var configFileSectionName in _configFile.SectionNames)
-            {
-                if (configFileSectionName == "[AccessoryWhitelist]")
-                {
-                    continue;
-                }
-                //var section = _configFile.GetSection(configFileSectionName);
-                var dynamicBonePreset = LoadSingleDynamicBonePreset(configFileSectionName);
-                if (dynamicBonePreset.Name != null)
-                {
-                    _dynamicBonePresets.Add(dynamicBonePreset);
-                }
-                
-            }
-        }
-        else
-        {
-            Debug.Log("No section names found");
-        }
-    }
-
-    private void UpdateDynamicBone(DynamicBone dynamicBone, bool isSetValue = false, float dampFloat = 0f,
-            float elastFloat = 0f, float stiffFloat = 0f,
-            float inertFloat = 0f, float radiusFloat = 0f,
-            float endOffsetX = 0f, float endOffsetY = 0f, float endOffsetZ = 0f, // End offset vec3
-            float gravityX = 0f, float gravityY = 0f, float gravityZ = 0f,       // gravity vec3
-            float forceX = 0f, float forceY = 0f, float forceZ = 0f,             // force vec3
-            DynamicBonesPreset dynamicBonePreset = null)                        
-    {
-        var dynamicBoneTarget = dynamicBone;
-        var dynamicBoneSo = new SerializedObject(dynamicBoneTarget);
-        var root = dynamicBoneSo.FindProperty("m_Root");
-        var damp = dynamicBoneSo.FindProperty("m_Damping");
-        var elast = dynamicBoneSo.FindProperty("m_Elasticity");
-        var stiff = dynamicBoneSo.FindProperty("m_Stiffness");
-        var inert = dynamicBoneSo.FindProperty("m_Inert");
-        var radius = dynamicBoneSo.FindProperty("m_Radius");
-        var endLength = dynamicBoneSo.FindProperty("m_EndLength");
-        var endOffset = dynamicBoneSo.FindProperty("m_EndOffset");
-        var grav = dynamicBoneSo.FindProperty("m_Gravity");
-        var force = dynamicBoneSo.FindProperty("m_Force");
-        var colliders = dynamicBoneSo.FindProperty("m_Colliders");
-        var exclusions = dynamicBoneSo.FindProperty("m_Exclusions");
-
-        if (isSetValue)
-        {
-            if (dynamicBonePreset != null)
-            {
-                dampFloat = dynamicBonePreset.Damping;
-                elastFloat = dynamicBonePreset.Elasticity;
-                stiffFloat = dynamicBonePreset.Stiffness;
-                inertFloat = dynamicBonePreset.Inert;
-                radiusFloat = dynamicBonePreset.Radius;
-
-                endOffsetX = dynamicBonePreset.EndOffset.x;
-                endOffsetY = dynamicBonePreset.EndOffset.y;
-                endOffsetZ = dynamicBonePreset.EndOffset.z;
-
-                gravityX = dynamicBonePreset.Gravity.x;
-                gravityY = dynamicBonePreset.Gravity.y;
-                gravityZ = dynamicBonePreset.Gravity.z;
-
-                forceX = dynamicBonePreset.Force.x;
-                forceY = dynamicBonePreset.Force.y;
-                forceZ = dynamicBonePreset.Force.z;
-
-            }
-            damp.floatValue = dampFloat;
-            elast.floatValue = elastFloat;
-            stiff.floatValue = stiffFloat;
-            inert.floatValue = inertFloat;
-            radius.floatValue = radiusFloat;
-            endOffset.vector3Value = new Vector3(endOffsetX, endOffsetY, endOffsetZ);
-            grav.vector3Value = new Vector3(gravityX, gravityY, gravityZ);
-            force.vector3Value = new Vector3(forceX, forceY, forceZ);
-        }
-
-        EditorGUI.indentLevel = 1;
-        {
-            EditorGUILayout.PropertyField(damp, true);
-            EditorGUILayout.PropertyField(elast, true);
-            EditorGUILayout.PropertyField(stiff, true);
-            EditorGUILayout.PropertyField(inert, true);
-            EditorGUILayout.PropertyField(radius, true);
-            EditorGUILayout.PropertyField(endLength, true);
-
-            EditorGUILayout.BeginHorizontal();
-            {
-                EditorGUILayout.PropertyField(endOffset, true, new[] { GUILayout.ExpandWidth(false) });
-                EditorGUILayout.PropertyField(grav, true, new[] { GUILayout.ExpandWidth(false) });
-            }
-            EditorGUILayout.EndHorizontal();
-
-            EditorGUILayout.PropertyField(force, true, new[] { GUILayout.ExpandWidth(false) });
-
-            EditorGUILayout.BeginHorizontal();
-            {
-                EditorGUILayout.PropertyField(colliders, true, new[] { GUILayout.ExpandWidth(false) });
-                EditorGUILayout.PropertyField(exclusions, true, new[] { GUILayout.ExpandWidth(false) });
-            }
-            EditorGUILayout.EndHorizontal();
-
-        }
-        EditorGUI.indentLevel = 0;
-
-        dynamicBoneSo.ApplyModifiedProperties();
-    }
-
     private List<Transform> TryFindCommonAccessories()
     {
         var configFileWhitelist = LoadAccessoryList();
@@ -838,6 +645,209 @@ public class DynamicBonesStudioWindow : EditorWindow
 
     }
 
+    private DynamicBonesPreset LoadSingleDynamicBonePreset(string presetName)
+    {
+        if (_configFile == null)
+        {
+            InitConfigFile();
+        }
+        if (presetName == null)
+        {
+            return null;
+        }
+        var section = _configFile.GetSection(presetName);
+        var dynamicBonePreset = new DynamicBonesPreset();
+        var tempOffsetVec3 = Vector3.zero;
+        var tempGravityVec3 = Vector3.zero;
+        var tempForceVec3 = Vector3.zero;
+        foreach (var sectionKey in section.Keys)
+        {
+            switch (sectionKey)
+            {
+                case "Name":
+                    dynamicBonePreset.Name = section[sectionKey];
+                    break;
+                case "UpdateRate":
+                    dynamicBonePreset.UpdateRate = float.Parse(section[sectionKey]);
+                    break;
+                case "Damp":
+                    dynamicBonePreset.Damping = float.Parse(section[sectionKey]);
+                    break;
+                case "Elasticity":
+                    dynamicBonePreset.Elasticity = float.Parse(section[sectionKey]);
+                    break;
+                case "Stiff":
+                    dynamicBonePreset.Stiffness = float.Parse(section[sectionKey]);
+                    break;
+                case "Inert":
+                    dynamicBonePreset.Inert = float.Parse(section[sectionKey]);
+                    break;
+                case "Radius":
+                    dynamicBonePreset.Radius = float.Parse(section[sectionKey]);
+                    break;
+
+                case "EndOffsetX":
+                    tempOffsetVec3.x = float.Parse(section[sectionKey]);
+                    break;
+                case "EndOffsetY":
+                    tempOffsetVec3.y = float.Parse(section[sectionKey]);
+                    break;
+                case "EndOffsetZ":
+                    tempOffsetVec3.z = float.Parse(section[sectionKey]);
+                    break;
+
+                case "GravityX":
+                    tempGravityVec3.x = float.Parse(section[sectionKey]);
+                    break;
+                case "GravityY":
+                    tempGravityVec3.y = float.Parse(section[sectionKey]);
+                    break;
+                case "GravityZ":
+                    tempGravityVec3.z = float.Parse(section[sectionKey]);
+                    break;
+
+                case "ForceX":
+                    tempForceVec3.x = float.Parse(section[sectionKey]);
+                    break;
+                case "ForceY":
+                    tempForceVec3.y = float.Parse(section[sectionKey]);
+                    break;
+                case "ForceZ":
+                    tempForceVec3.z = float.Parse(section[sectionKey]);
+                    break;
+
+            }
+        }
+        dynamicBonePreset.EndOffset = tempOffsetVec3;
+        dynamicBonePreset.Gravity = tempGravityVec3;
+        dynamicBonePreset.Force = tempForceVec3;
+        return dynamicBonePreset;
+    }
+
+    private void LoadDynamicBonePresets()
+    {
+        if (_configFile == null)
+        {
+            InitConfigFile();
+        }
+
+        _configFile.Refresh();
+
+        if (_configFile.SectionNames != null)
+        {
+            foreach (var configFileSectionName in _configFile.SectionNames)
+            {
+                if (configFileSectionName == "[AccessoryWhitelist]")
+                {
+                    continue;
+                }
+                //var section = _configFile.GetSection(configFileSectionName);
+                var dynamicBonePreset = LoadSingleDynamicBonePreset(configFileSectionName);
+                if (dynamicBonePreset.Name != null)
+                {
+                    _dynamicBonePresets.Add(dynamicBonePreset);
+                }
+                
+            }
+        }
+        else
+        {
+            Debug.Log("No section names found");
+        }
+    }
+
+    private void UpdateDynamicBone(DynamicBone dynamicBone, bool isSetValue = false, float dampFloat = 0f,
+        float elastFloat = 0f, float stiffFloat = 0f,
+        float inertFloat = 0f, float radiusFloat = 0f,
+        float endOffsetX = 0f, float endOffsetY = 0f, float endOffsetZ = 0f,// End offset vec3
+        float gravityX = 0f, float gravityY = 0f, float gravityZ = 0f,      // gravity vec3
+        float forceX = 0f, float forceY = 0f, float forceZ = 0f,            // force vec3
+        float updateRateFloat = 0f,
+        DynamicBonesPreset dynamicBonePreset = null)                        
+    {
+        var dynamicBoneTarget = dynamicBone;
+        var dynamicBoneSo = new SerializedObject(dynamicBoneTarget);
+        var root = dynamicBoneSo.FindProperty("m_Root");
+        var updateRate = dynamicBoneSo.FindProperty("m_UpdateRate");
+        var damp = dynamicBoneSo.FindProperty("m_Damping");
+        var elast = dynamicBoneSo.FindProperty("m_Elasticity");
+        var stiff = dynamicBoneSo.FindProperty("m_Stiffness");
+        var inert = dynamicBoneSo.FindProperty("m_Inert");
+        var radius = dynamicBoneSo.FindProperty("m_Radius");
+        var endLength = dynamicBoneSo.FindProperty("m_EndLength");
+        var endOffset = dynamicBoneSo.FindProperty("m_EndOffset");
+        var grav = dynamicBoneSo.FindProperty("m_Gravity");
+        var force = dynamicBoneSo.FindProperty("m_Force");
+        var colliders = dynamicBoneSo.FindProperty("m_Colliders");
+        var exclusions = dynamicBoneSo.FindProperty("m_Exclusions");
+
+        if (isSetValue)
+        {
+            if (dynamicBonePreset != null)
+            {
+                dampFloat = dynamicBonePreset.Damping;
+                updateRateFloat = dynamicBonePreset.UpdateRate;
+                elastFloat = dynamicBonePreset.Elasticity;
+                stiffFloat = dynamicBonePreset.Stiffness;
+                inertFloat = dynamicBonePreset.Inert;
+                radiusFloat = dynamicBonePreset.Radius;
+
+                endOffsetX = dynamicBonePreset.EndOffset.x;
+                endOffsetY = dynamicBonePreset.EndOffset.y;
+                endOffsetZ = dynamicBonePreset.EndOffset.z;
+
+                gravityX = dynamicBonePreset.Gravity.x;
+                gravityY = dynamicBonePreset.Gravity.y;
+                gravityZ = dynamicBonePreset.Gravity.z;
+
+                forceX = dynamicBonePreset.Force.x;
+                forceY = dynamicBonePreset.Force.y;
+                forceZ = dynamicBonePreset.Force.z;
+
+            }
+            updateRate.floatValue = updateRateFloat;
+            damp.floatValue = dampFloat;
+            elast.floatValue = elastFloat;
+            stiff.floatValue = stiffFloat;
+            inert.floatValue = inertFloat;
+            radius.floatValue = radiusFloat;
+            endOffset.vector3Value = new Vector3(endOffsetX, endOffsetY, endOffsetZ);
+            grav.vector3Value = new Vector3(gravityX, gravityY, gravityZ);
+            force.vector3Value = new Vector3(forceX, forceY, forceZ);
+        }
+
+        EditorGUI.indentLevel = 1;
+        {
+            EditorGUILayout.PropertyField(updateRate, true, new[]{GUILayout.ExpandWidth(false)});
+            EditorGUILayout.PropertyField(damp, true);
+            EditorGUILayout.PropertyField(elast, true);
+            EditorGUILayout.PropertyField(stiff, true);
+            EditorGUILayout.PropertyField(inert, true);
+            EditorGUILayout.PropertyField(radius, true);
+            EditorGUILayout.PropertyField(endLength, true);
+
+            EditorGUILayout.BeginHorizontal();
+            {
+                EditorGUILayout.PropertyField(endOffset, true, new[] { GUILayout.ExpandWidth(false) });
+                EditorGUILayout.PropertyField(grav, true, new[] { GUILayout.ExpandWidth(false) });
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.PropertyField(force, true, new[] { GUILayout.ExpandWidth(false) });
+
+            EditorGUILayout.BeginHorizontal();
+            {
+                EditorGUILayout.PropertyField(colliders, true, new[] { GUILayout.ExpandWidth(false) });
+                EditorGUILayout.PropertyField(exclusions, true, new[] { GUILayout.ExpandWidth(false) });
+            }
+            EditorGUILayout.EndHorizontal();
+
+        }
+        EditorGUI.indentLevel = 0;
+
+        dynamicBoneSo.ApplyModifiedProperties();
+    }
+
     private void SaveDynamicBonePreset(string presetName, DynamicBone bone)
     {
         if (_configFile == null)
@@ -846,10 +856,8 @@ public class DynamicBonesStudioWindow : EditorWindow
         }
         _configFile.Refresh();
 
-        //_configFile.SetValue(presetName, "UpdateRate", bone.m_UpdateRate.ToString());
-
         _configFile.SetValue(presetName, "Name", presetName);
-
+        _configFile.SetValue(presetName, "UpdateRate", bone.m_UpdateRate.ToString());
         _configFile.SetValue(presetName, "Damp", bone.m_Damping.ToString());
         _configFile.SetValue(presetName, "Elasticity", bone.m_Elasticity.ToString());
         _configFile.SetValue(presetName, "Stiff", bone.m_Stiffness.ToString());
@@ -871,13 +879,14 @@ public class DynamicBonesStudioWindow : EditorWindow
         _configFile.SetValue(presetName, "ForceY", bone.m_Force.y.ToString());
         _configFile.SetValue(presetName, "ForceZ", bone.m_Force.z.ToString());
     }
+
     /** TODO Presets
-*  - In "studio" tab
-*       - Set of sliders for each "accessory" added
-*       - Text box to name accessory (default to bone name)
-*       - Save to preset button
-*       - Load presets as a dropdown list to apply to any set of sliders
-*/
+    *  - In "studio" tab
+    *       - Set of sliders for each "accessory" added
+    *       - Text box to name accessory (default to bone name)
+    *       - Save to preset button
+    *       - Load presets as a dropdown list to apply to any set of sliders
+    */
     private void InitConfigFile()
     {
         //Application.dataPath + "/Kaori/DynamicBonesStudio/Editor/DynamicBonesPresets.cfg"

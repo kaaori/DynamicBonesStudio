@@ -18,6 +18,7 @@ gimmickr=gimmickr
 gimmick=gimmick
 [Default Dynamic Bone]
 Name=Default Dynamic Bone
+UpdateRate=60
 Damp=0.1
 Elasticity=0.1
 Stiff=0.1
