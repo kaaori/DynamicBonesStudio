@@ -2,7 +2,7 @@
 A useful tool for quickly setting up and manipulating dynamic bones with VRChat Avatars
 
 # Required unity assets
-* Dynamic Bone
+* Dynamic Bone (ver>=1.2.0 )
 
 # Getting started / How to use;
 1. Open the Dynamic Bones Studio editor window. (Window -> Dynamic Bones Studio)
