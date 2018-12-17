@@ -100,7 +100,20 @@ public class DynamicBonesStudioWindow : EditorWindow
 
     void OnEnable()
     {
-        _cfgFilePath = Application.dataPath + "/Kaori/DynamicBonesStudio/Editor/DynamicBonesPresets.txt";
+        // Get the directory name of the filepath of this current script
+        // This will ensure the config file is always in the same directory as the editor script.
+        var script = MonoScript.FromScriptableObject(this);
+        var path = AssetDatabase.GetAssetPath(script);
+        var dir = Path.GetDirectoryName(path);
+
+        _cfgFilePath = dir + "/DynamicBonesPresets.txt";
+
+        // Automatically create the file if it isn't found.
+        if (!File.Exists(_cfgFilePath))
+        {
+            Debug.Log("Config file not found, creating ");
+            File.Create(dir + "/DynamicBonesPresets.txt");
+        }
     }
 
     void OnInspectorUpdate()
@@ -110,17 +123,10 @@ public class DynamicBonesStudioWindow : EditorWindow
 
     void OnGUI()
     {
-        if (!File.Exists(_cfgFilePath))
-        {
-            if (GUILayout.Button("No config file found! Create here to create one.", new []{GUILayout.Height(100)}))
-            {
-                InitConfigFile();
-            }
-            return;
-        }
         EditorGUILayout.BeginHorizontal();
         _isOptionsShowing = GUILayout.Toggle(_isOptionsShowing, "Show Options", EditorStyles.toolbarButton, new[] { GUILayout.ExpandWidth(false) });
         _selectedTabIndex = GUILayout.Toolbar(_selectedTabIndex, new string[] {"Basic setup", "Studio"}, EditorStyles.toolbarButton);
+
         EditorApplication.playmodeStateChanged += HandleOnPlayModeChanged;
         EditorGUILayout.EndHorizontal();
     
@@ -131,7 +137,9 @@ public class DynamicBonesStudioWindow : EditorWindow
             EditorGUI.indentLevel++;
             EditorGUILayout.BeginHorizontal();
             GUI.SetNextControlName("WhitelistTextField");
+
             _itemToAddToWhitelist = EditorGUILayout.TextField(_itemToAddToWhitelist);
+
             if (GUILayout.Button("Add item") /*|| (Event.current.keyCode == KeyCode.Return && GUI.GetNameOfFocusedControl() == "WhitelistTextField")*/)
             {
                 if (_configFile == null)
@@ -143,6 +151,7 @@ public class DynamicBonesStudioWindow : EditorWindow
                 _configFile.Refresh();
 
             }
+
             EditorGUILayout.EndHorizontal();
             if (GUILayout.Button("Reset All Settings", new []{GUILayout.ExpandWidth(false)}))
             {
@@ -159,10 +168,12 @@ public class DynamicBonesStudioWindow : EditorWindow
                 }
 
             }
+
             EditorGUI.indentLevel--;
             EditorGUILayout.Space();
             EditorGUILayout.Space();
             EditorGUILayout.EndVertical();
+
         }
         switch (_selectedTabIndex)
         {
@@ -488,21 +499,25 @@ public class DynamicBonesStudioWindow : EditorWindow
         if (_isAboutShowing)
         {
             GUILayout.BeginVertical(EditorStyles.helpBox);
+
             EditorGUI.indentLevel++;
-            EditorGUILayout.LabelField("Dynamic Bones Studio v0.02\n" +
+            EditorGUILayout.LabelField("Dynamic Bones Studio v0.3\n" +
                                     "by Kaori\n\n" +
                                     "Feedback or bugs can be posted to GitHub or sent to me through discord:\n" +
                                     "Kaori#0420", EditorStyles.textArea);
             GUILayout.BeginHorizontal();
             GUILayout.Space(EditorGUI.indentLevel*15);
+
             if (GUILayout.Button("GitHub", new[] { GUILayout.ExpandWidth(false) }))
             {
                 Application.OpenURL("https://github.com/kaaori/DynamicBonesStudio");
             }
+
             if (GUILayout.Button("Buy me a coffee", new[] { GUILayout.ExpandWidth(false) }))
             {
                 Application.OpenURL("https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=JZYZWQQZRJ4FC");
             }
+
             GUILayout.EndHorizontal();
             EditorGUI.indentLevel--;
             GUILayout.EndVertical();
@@ -726,7 +741,7 @@ public class DynamicBonesStudioWindow : EditorWindow
 
     private void LoadDynamicBonePresets()
     {
-        if (_configFile == null)
+        if (_configFile == null || !File.Exists(_cfgFilePath))
         {
             InitConfigFile();
         }
@@ -889,7 +904,6 @@ public class DynamicBonesStudioWindow : EditorWindow
     */
     private void InitConfigFile()
     {
-        //Application.dataPath + "/Kaori/DynamicBonesStudio/Editor/DynamicBonesPresets.cfg"
         if (File.Exists(_cfgFilePath))
         {
             _configFile = new IniFile(_cfgFilePath);
@@ -899,7 +913,6 @@ public class DynamicBonesStudioWindow : EditorWindow
             _configFile = new IniFile();
             _configFile.Save(_cfgFilePath);
         }
-        //_configFile.Save(Application.dataPath + "/Kaori/DynamicBonesStudio/Editor/DynamicBonesPresets.cfg");
     }
 
     private Dictionary<string, string> LoadAccessoryList()
