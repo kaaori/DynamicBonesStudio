@@ -513,11 +513,6 @@ public class DynamicBonesStudioWindow : EditorWindow
                 Application.OpenURL("https://github.com/kaaori/DynamicBonesStudio");
             }
 
-            if (GUILayout.Button("Buy me a coffee", new[] { GUILayout.ExpandWidth(false) }))
-            {
-                Application.OpenURL("https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=JZYZWQQZRJ4FC");
-            }
-
             GUILayout.EndHorizontal();
             EditorGUI.indentLevel--;
             GUILayout.EndVertical();
