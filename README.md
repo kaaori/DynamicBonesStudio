@@ -1,13 +1,12 @@
 # DynamicBonesStudio
-A useful tool for quickly setting up and manipulating dynamic bones with VRChat Avatars
-
+A useful tool for quickly setting up and manipulating dynamic bones for Unity characters
 # Required unity assets
 * Dynamic Bone (ver>=1.2.0 )
 
 # Getting started / How to use;
 1. Open the Dynamic Bones Studio editor window. (Window -> Dynamic Bones Studio)
 2. Add your avatar to the specified field, and correct the automatically-found hair root bone, if neccessary.
-3. Click "Try and find common accessories" to attempt to find commonly named accessories of MMD models (skirts/tails/ears etc)
+3. Click "Try and find common accessories" to attempt to find accessories configured in the .ini file
 4. Click apply dynamic bones and confirm!
 
 # Studio tab;
@@ -28,7 +27,3 @@ You can save and load presets for quick testing/configuring of avatars.
 2. Select the preset by name from the dropdown and click "load"
 
 
-
-
-# Planned features;
-- Automatic adding of Colliders to fingers/hips/head (manual scaling probably will be needed)
